@@ -1,0 +1,13 @@
+# Only publish the reviewed static catalog and deployment files.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/.github/
+!/scripts/
+!/title-catalog/
+/title-catalog/*
+!/title-catalog/index.html
+!/title-catalog/images/
+__pycache__/
+*.pyc
