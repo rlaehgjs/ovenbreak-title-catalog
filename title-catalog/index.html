@@ -20,6 +20,7 @@
 .results{align-items:center}.results #pageSize{width:auto;flex-shrink:0;padding:7px 10px;font-size:13px}
 
 .catalog-heading{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.release-button{font:inherit;font-size:.52em;font-weight:750;color:var(--accent);border:0;background:transparent;padding:3px 0;cursor:pointer}.release-button.is-new{color:#9b6a00;background:#fff0a1;border-radius:6px;padding:3px 8px}.release-button.is-new::after{content:" NEW";font-size:.55em;vertical-align:middle}.release-button:focus-visible{outline:2px solid var(--accent);outline-offset:4px}.release-dialog{width:min(760px,calc(100% - 28px));max-height:85vh;border:1px solid var(--line);border-radius:16px;padding:24px;color:var(--ink);background:var(--paper)}.release-dialog::backdrop{background:#18251e88}.release-dialog-head{display:flex;justify-content:space-between;align-items:center;gap:15px}.release-dialog-head h2{margin:0;font-size:22px}.release-intro{font-size:13px;color:var(--muted)}.release-entry{border-top:1px solid var(--line);padding:16px 0}.release-entry summary{font-size:15px;font-weight:700;cursor:pointer}.release-entry p,.release-entry li{font-size:13px;line-height:1.7}.release-entry h3{font-size:14px;margin:16px 0 8px}.release-entry ul{padding-left:20px}.release-entry .change-values{white-space:pre-wrap;color:var(--muted);margin:4px 0 10px;overflow-wrap:anywhere}.release-meta{color:var(--muted);font-size:12px}.release-entry li{margin-bottom:12px}@media(max-width:600px){.catalog-heading{gap:8px}.release-dialog{padding:18px}.release-dialog-head h2{font-size:18px}}
+.release-help{display:inline-flex;align-items:center;justify-content:center;width:1.35em;height:1.35em;border:1px solid currentColor;border-radius:50%;font-size:.85em;margin-left:5px}.release-jump{font-size:12px;padding:3px 8px;margin-left:8px;color:var(--accent);border:1px solid var(--line);border-radius:6px;background:transparent;cursor:pointer}.release-entry li:has(.release-jump){cursor:pointer}.card.jump-highlight{outline:3px solid #d9a522;outline-offset:3px}
 </style></head><body><main>
 <header><div><div class="eyebrow">COOKIE RUN: OVENBREAK / TITLE ARCHIVE</div><h1 class="catalog-heading">칭호 도감 <button id="releaseButton" class="release-button" type="button" aria-haspopup="dialog" aria-controls="releaseDialog" title="버전별 변경 내역">(V—)</button></h1></div><div class="stats"><div class="stat"><strong id="total">—</strong><span>전체 칭호</span></div><div class="stat"><strong id="hiddenCount">—</strong><span>히든 칭호</span></div><div class="stat"><strong>5</strong><span>분류</span></div></div></header>
 <section class="ownership-summary" aria-label="보유 칭호 점수"><strong>보유 <span id="ownedCount">0</span>개 · <span id="ownedScore">0</span>점</strong><p>칭호 카드 어디든 누르면 보유 표시를 켜거나 끌 수 있어요. 보유 기록은 이 브라우저에 자동 저장됩니다.</p><div id="scoreGuide" class="score-guide" aria-label="등급별 칭호 점수"></div><p id="saveStatus" role="status"></p></section><section class="controls" aria-label="칭호 필터"><nav class="tabs" id="tabs" aria-label="분류"></nav><div class="fields"><input type="search" id="query" aria-label="이름, 획득 조건, 도감 번호 검색" placeholder="이름, 획득 조건 또는 도감 번호 검색…"><select id="sort" aria-label="정렬"><option value="category">분류 / 등급 순</option><option value="name">이름순</option><option value="latest" selected>최신순</option><option value="id">기본</option><option value="grade">등급 높은 순</option></select><button id="reset">초기화</button></div>
@@ -52,7 +53,7 @@ const $=id=>document.getElementById(id), escapeText=s=>String(s??'').replace(/[&
 // Record the revision opened in this browser separately from title ownership.
 const release=data.release,releaseButton=$('releaseButton');
 const gameVersion=data.game_version||release?.game_version||'—';
-releaseButton.textContent=`(V${gameVersion} / 도감 #${release?.sequence||1})`;
+releaseButton.innerHTML=`<span>(V${escapeText(gameVersion)} / 도감 #${release?.sequence||1})</span> <span class="release-help" aria-hidden="true">?</span>`;
 if(release?.id){try{const key='ovenbreak-title-last-opened-release-v1',previous=localStorage.getItem(key);if(previous&&previous!==release.id){releaseButton.classList.add('is-new');releaseButton.title='새로운 칭호 변경 내역이 있습니다';}localStorage.setItem(key,release.id);}catch(error){/* Storage may be disabled. The history remains available. */}}
 function releaseValue(value,key){if(value===null||value===undefined||value==='')return '없음';if(key==='hidden_until_owned')return value?'히든 칭호':'일반 칭호';if(key==='rarity')return ({1:'커먼',2:'레어',3:'에픽',4:'레전드리',5:'얼티밋',6:'챔피언십'})[value]||String(value);if(key==='availability_override')return ({unavailable:'종료된 칭호',permanent:'상시 칭호',limited:'한정 칭호'})[value]||String(value);return String(value);}
 function openReleaseHistory(){
@@ -60,11 +61,12 @@ function openReleaseHistory(){
  $('releaseHistory').innerHTML=entries.map((entry,index)=>{
   const label=`V${entry.game_version} · 도감 #${entry.sequence}`;
   const added=entry.added||[],changed=entry.changed||[],removed=entry.removed||[];
+  const jump=item=>data.titles.some(row=>row.id===item.id)?` <button type="button" class="release-jump" data-jump-title="${item.id}" aria-label="${escapeText(item.name)} 칭호로 이동">바로가기 →</button>`:'';
   const itemName=item=>`${escapeText(item.name)} <span class="release-meta">No.${escapeText(item.catalog_number??'—')}</span>`;
   let body=entry.baseline?'<p>이 버전부터 변경 내역 기록을 시작했습니다. 이전 변경 내역은 포함되지 않습니다.</p>':'';
   if(entry.game_version_changed)body+='<p>게임 데이터 버전이 갱신되었습니다.</p>';
-  if(added.length)body+=`<h3>추가된 칭호 ${added.length}개</h3><ul>${added.map(item=>`<li><strong>${itemName(item)}</strong><div class="change-values">${escapeText(item.condition||'')}</div></li>`).join('')}</ul>`;
-  if(changed.length)body+=`<h3>변경된 칭호 ${changed.length}개</h3><ul>${changed.map(item=>`<li><strong>${itemName(item)}</strong>${item.fields.map(field=>field.key==='image_hash'?'<div class="change-values">칭호 이미지 갱신</div>':`<div class="change-values"><b>${escapeText(field.label)}</b>
+  if(added.length)body+=`<h3>추가된 칭호 ${added.length}개</h3><ul>${added.map(item=>`<li><strong>${itemName(item)}</strong>${jump(item)}<div class="change-values">${escapeText(item.condition||'')}</div></li>`).join('')}</ul>`;
+  if(changed.length)body+=`<h3>변경된 칭호 ${changed.length}개</h3><ul>${changed.map(item=>`<li><strong>${itemName(item)}</strong>${jump(item)}${item.fields.map(field=>field.key==='image_hash'?'<div class="change-values">칭호 이미지 갱신</div>':`<div class="change-values"><b>${escapeText(field.label)}</b>
 이전: ${escapeText(releaseValue(field.before,field.key))}
 변경: ${escapeText(releaseValue(field.after,field.key))}</div>`).join('')}</li>`).join('')}</ul>`;
   if(removed.length)body+=`<h3>목록에서 제외된 칭호 ${removed.length}개</h3><ul>${removed.map(item=>`<li>${itemName(item)}</li>`).join('')}</ul>`;
@@ -76,6 +78,18 @@ function openReleaseHistory(){
  $('releaseDialog').showModal();releaseButton.classList.remove('is-new');releaseButton.title='버전별 변경 내역';
 }
 releaseButton.addEventListener('click',openReleaseHistory);
+$('releaseHistory').addEventListener('click',event=>{
+ const li=event.target.closest('li');
+ const button=event.target.closest('[data-jump-title]')||li?.querySelector('[data-jump-title]');
+ if(!button)return;
+ const id=Number(button.dataset.jumpTitle);
+ if(!data.titles.some(row=>row.id===id))return;
+ resetFilters();
+ const index=filtered.findIndex(row=>row.id===id);if(index<0)return;
+ page=Math.floor(index/pageSize);update();$('releaseDialog').close();
+ const card=$('grid').querySelector(`[data-id="${id}"]`);
+ if(card){card.focus({preventScroll:true});card.scrollIntoView({block:'center',behavior:'smooth'});card.classList.add('jump-highlight');setTimeout(()=>card.classList.remove('jump-highlight'),2500);}
+});
 $('releaseClose').addEventListener('click',()=>$('releaseDialog').close());
 $('releaseDialog').addEventListener('click',event=>{if(event.target===$('releaseDialog')){const box=event.target.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)event.target.close();}});
 
@@ -143,7 +157,8 @@ $('grid').addEventListener('keydown',event=>{if(event.target.matches('[data-owne
 for(const id of ['query','sort'])$(id).addEventListener(id==='query'?'input':'change',()=>{page=0;update()});
 document.querySelectorAll('.filter-groups input[type=checkbox]').forEach(el=>el.addEventListener('change',()=>{page=0;update()}));
 for(const [id,checked] of [['gradesAll',true],['gradesNone',false]])$(id).addEventListener('click',()=>{document.querySelectorAll('input[name=rarity]').forEach(el=>el.checked=checked);page=0;update()});
-$('reset').addEventListener('click',()=>{categories=new Set(Object.keys(data.categories));page=0;$('query').value='';document.querySelectorAll('.filter-groups input[type=checkbox]').forEach(el=>el.checked=true);$('sort').value='latest';update()});
+function resetFilters(){categories=new Set(Object.keys(data.categories));page=0;$('query').value='';document.querySelectorAll('.filter-groups input[type=checkbox]').forEach(el=>el.checked=true);$('sort').value='latest';update()}
+$('reset').addEventListener('click',resetFilters);
 $('pageSize').addEventListener('change',()=>{const size=Number($('pageSize').value);if(![20,40,60].includes(size))return;pageSize=size;page=0;update()});
 $('pageJump').noValidate=true;
 $('pageJump').addEventListener('submit',event=>{event.preventDefault();const n=Number($('pageNumber').value);if(!$('pageNumber').value.trim()||!Number.isFinite(n)){$('pageNumber').value=page+1;return}page=Math.max(0,Math.min(Math.ceil(filtered.length/pageSize)-1,Math.trunc(n)-1));update();$('resultCount').scrollIntoView({block:'center'})});
