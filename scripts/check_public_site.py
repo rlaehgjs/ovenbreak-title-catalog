@@ -8,7 +8,8 @@ root = Path(__file__).resolve().parents[1] / 'title-catalog'
 html = (root / 'index.html').read_text(encoding='utf-8')
 match = re.search(r'<script type="application/json" id="catalog-data">(.*?)</script>', html, re.S)
 assert match, 'Embedded catalog missing'
-rows = json.loads(match.group(1))['titles']
+dataset = json.loads(match.group(1))
+rows = dataset['titles']
 assert rows, 'Catalog empty'
 now = datetime.now(timezone.utc)
 ids, images = set(), set()
@@ -29,6 +30,8 @@ for row in rows:
         file = root / value
         assert file.is_file() and not file.is_symlink(), f'Missing image: {value}'
         images.add(value)
+if dataset.get('release'):
+    assert set(map(int, dataset['release']['snapshot'])) == ids, 'Release snapshot contains non-public titles'
 actual = {p.relative_to(root).as_posix() for p in (root / 'images').rglob('*') if p.is_file()}
 assert actual == images, 'Unreferenced or missing images'
 print(f'Validated {len(rows)} public titles and {len(images)} images.')
