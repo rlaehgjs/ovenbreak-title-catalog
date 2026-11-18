@@ -1,4 +1,5 @@
-# Only publish the reviewed static catalog and deployment files.
+# Only publish the reviewed static catalog, the web app source and deployment files.
+# Everything else in this folder (analysis/, bgm-player/, game data, decrypt keys, renders, CLAUDE.md, previews) stays local.
 /*
 !/.gitignore
 !/.gitattributes
@@ -9,5 +10,14 @@
 /title-catalog/*
 !/title-catalog/index.html
 !/title-catalog/images/
+# React app (built and deployed by .github/workflows/pages.yml). Audio comes from the R2 Worker, not from git.
+!/web/
+/web/node_modules/
+/web/dist/
+/web/src/generated/
+/web/public/catalog/
+/web/*.jpg
+# R2 audio delivery Worker source (deployed by hand in the Cloudflare dashboard)
+!/bgm-worker/
 __pycache__/
 *.pyc

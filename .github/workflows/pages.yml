@@ -1,4 +1,4 @@
-name: Publish title catalog
+name: Publish site
 on:
   push:
     branches: [main]
@@ -18,11 +18,32 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - name: Validate public catalog
-        run: python3 scripts/check_public_site.py
+        run: python scripts/check_public_site.py
+      - name: Install
+        working-directory: web
+        run: npm ci
+      # prebuild syncs title-catalog/ into the app (scripts/sync-catalog.mjs); check:catalog then confirms it is unmodified.
+      - name: Build
+        working-directory: web
+        env:
+          # Full BGM library audio is served by the R2 Worker (bgm-worker/); without it only the 3 bundled test tracks appear.
+          VITE_BGM_BASE: https://ovenbreak-bgm.ehgjs6569.workers.dev/
+        run: |
+          npm run build
+          npm run check:catalog
+          npm run lint
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: title-catalog
+          path: web/dist
       - uses: actions/deploy-pages@v5
         id: deployment

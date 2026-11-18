@@ -1,0 +1,25 @@
+import { useState } from 'react'
+import { findSong, songs, trackLength, useAudio, versionOf, type Song } from './AudioProvider'
+import { clock } from './model'
+import { VersionDialog } from './VersionDialog'
+import { SpeedPicker } from './SpeedPicker'
+export default function MusicPage(){
+ const p=useAudio(),[name,setName]=useState(''),[query,setQuery]=useState(''),[destination,setDestination]=useState(''),[versions,setVersions]=useState<Song|null>(null)
+ const active=p.settings.playlists.find(list=>list.id===p.settings.active)
+ const target=p.settings.playlists.some(list=>list.id===destination)?destination:p.settings.playlists[0]?.id||''
+ const q=query.toLowerCase(),matches=(s:Song)=>[s.title,...s.names].some(n=>n.toLowerCase().includes(q))
+ return <section className="feature-page"><div className="eyebrow">OVENBREAK SOUND ARCHIVE</div><h1>BGM 라이브러리</h1><p className="lead">좋아하는 음악을 모아, 어디서든 이어 들으세요.</p><p>현재 {songs.length}곡을 들을 수 있습니다. 게임에서 같은 곡을 다른 속도로 쓰면 속도 버튼으로, 반복 구간·효과가 다르면 ‘버전’에서 골라 들을 수 있습니다(빠른 속도는 게임처럼 음 높이는 그대로 템포만 빨라집니다). 새로고침하면 마지막 곡·위치를 복원하고 재생 버튼을 기다립니다.</p>
+ <section className="music-settings" aria-label="재생목록 관리"><label>듣고 있는 목록<select aria-label="재생목록 선택" value={p.settings.active} onChange={e=>p.setActive(e.target.value)}><option value="all">전체 곡</option><option value="favorites">즐겨찾기 ({p.settings.favorites.length})</option>{p.settings.playlists.map(list=><option value={list.id} key={list.id}>{list.name} ({list.tracks.length})</option>)}</select></label><form onSubmit={e=>{e.preventDefault();if(name.trim()){p.createPlaylist(name);setName('')}}}><input aria-label="재생목록 이름" maxLength={60} value={name} onChange={e=>setName(e.target.value)} placeholder="새 재생목록 이름"/><button disabled={!name.trim()}>목록 만들기</button>{active&&<button type="button" disabled={!name.trim()} onClick={()=>{p.renamePlaylist(active.id,name);setName('')}}>현재 목록 이름 변경</button>}</form>{active&&<button onClick={()=>p.deletePlaylist(active.id)}>현재 목록 삭제</button>}<p>재생 방식: ‘게임처럼 구간 반복’은 게임과 같은 반복 구간을 끊김 없이 계속 반복하고(다음 곡으로 넘어가지 않음), ‘끝까지 재생’은 반복 없이 곡이 끝나는 곳까지 듣고 다음 곡으로 넘어갑니다. 반복 없이 한 번만 나오는 곡은 두 방식이 같습니다.</p></section>
+ <section aria-label="현재 재생 순서"><h2>재생목록 <small>{p.queue.length}곡</small></h2><p>셔플을 켜면 한 바퀴 안에서 같은 곡을 중복 선택하지 않습니다. ‘전체 반복’은 현재 목록을 반복합니다.</p>{!p.queue.length&&<p role="status">빈 목록입니다. 아래에서 곡을 추가하거나 즐겨찾기를 선택해 주세요.</p>}<ol className="queue-list">{p.queue.map((id,i)=>{const t=findSong(id)!;return <li key={id}><button className="queue-title" onClick={()=>p.select(id)}>{p.song.id===id?'♫ ':''}{t.title}</button>{active&&<span><button aria-label={t.title+' 위로'} disabled={i===0} onClick={()=>p.move(active.id,id,-1)}>↑</button><button aria-label={t.title+' 아래로'} disabled={i===p.queue.length-1} onClick={()=>p.move(active.id,id,1)}>↓</button><button aria-label={t.title+' 목록에서 제거'} onClick={()=>p.removeFromPlaylist(active.id,id)}>제거</button></span>}</li>})}</ol></section>
+ <div className="library-tools"><input aria-label="음악 검색" placeholder="음악 이름 검색" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="곡을 추가할 목록" value={target} disabled={!target} onChange={e=>setDestination(e.target.value)}>{!target&&<option value="">먼저 재생목록을 만들어 주세요</option>}{p.settings.playlists.map(list=><option value={list.id} key={list.id}>{list.name}</option>)}</select></div>
+ <div className="track-list">{songs.filter(matches).map((song,i)=>{const v=versionOf(song,p.settings),here=p.song.id===song.id,sameSpeed=song.versions.filter(x=>x.speed===v.speed).length
+  return <article className={here?'track selected':'track'} key={song.id}><span className="track-number">{String(i+1).padStart(2,'0')}</span><div><h2>{song.title}</h2>
+   <p>{clock(trackLength(v,p.settings.mode))} · {v.gameLoop?(p.settings.mode==='game'?'구간 반복':'끝까지 재생'):'한 번 재생'} {here&&p.playing?'· 재생 중':''}</p>
+   {v.unlisted&&<p className="track-note">{v.event?'현재 게임 설정에서 쓰지 않는 곡입니다(사운드 뱅크에만 있음).':'현재 게임 설정에 없는 예전 곡입니다. 게임 기본 설정(속도 1배, 곡 전체 반복, 효과 없음)으로 렌더했습니다(추정).'}</p>}{song.names.length>0&&<p className="track-note">다른 이름: {song.names.join(', ')}</p>}
+   <SpeedPicker song={song}/>
+   {sameSpeed>1&&<p className="track-note">버전: {v.summary}</p>}
+   <div className="track-actions">{sameSpeed>1&&<button onClick={()=>setVersions(song)} aria-label={`${song.title} 버전 선택 (${sameSpeed}개)`}>버전 {sameSpeed}개 ▾</button>}<button aria-label={song.title+' 즐겨찾기'} aria-pressed={p.settings.favorites.includes(song.id)} onClick={()=>p.favorite(song.id)}>{p.settings.favorites.includes(song.id)?'★ 즐겨찾기':'☆ 즐겨찾기'}</button><button disabled={!target||p.settings.playlists.find(l=>l.id===target)?.tracks.includes(song.id)} onClick={()=>p.addToPlaylist(target,song.id)} aria-label={song.title+' 목록에 추가'}>목록에 추가</button></div></div>
+   <button onClick={()=>here&&p.queue.includes(song.id)?p.toggle():p.select(song.id)} aria-label={song.title+(here&&p.playing?' 일시정지':' 재생')}>{here&&p.playing?'일시정지':'재생'}</button></article>})}</div>
+ <p>즐겨찾기·재생목록·음량·반복·셔플·곡별 버전·마지막 곡과 위치는 이 브라우저에만 저장됩니다. 칭호 보유 기록과는 별도로 관리됩니다.</p>
+ <VersionDialog song={versions} onClose={()=>setVersions(null)}/></section>
+}

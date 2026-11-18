@@ -1,0 +1,14 @@
+import {readFileSync} from 'node:fs';
+import {strict as assert} from 'node:assert';
+import {markup} from '../src/generated/catalog.ts';
+const html=readFileSync('../title-catalog/index.html','utf8');
+const original=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const module=readFileSync('src/generated/catalog.ts','utf8');
+assert(module.includes(original),'Legacy behavior must be copied without modifications');
+assert(markup.includes('.body{padding:17px 19px 19px;'),'Card style preserved');
+assert(!markup.includes('.:host'),'No selector corruption');
+const getData=s=>JSON.parse(s.match(/<script type="application\/json" id="catalog-data">([\s\S]*?)<\/script>/)[1]);
+const before=getData(html),after=getData(markup);
+for(const row of after.titles)for(const key of ['image','animated_image'])if(row[key])row[key]=row[key].replace('__CATALOG_BASE__catalog/','');
+assert.deepEqual(after,before,'Dataset and release history unchanged');
+console.log('PASS: complete legacy script, dataset, release history and card styles preserved');
