@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         쿠오븐 쿠폰 도우미
 // @namespace    https://rlaehgjs.github.io/ovenbreak-title-catalog/
-// @version      0.1.3
+// @version      0.1.4
 // @description  쿠오븐 사이트에서 고른 ID들을 공식 쿠폰 페이지에 차례로 입력합니다. 기본은 입력만 하고 '상품 받기'는 직접 누릅니다.
 // @match        https://www.cookierun.com/*/coupon*
 // @match        https://cookierun.com/*/coupon*
@@ -21,7 +21,7 @@
     'http://localhost:5173',
     'http://127.0.0.1:4173',
   ]
-  const AUTO_MAX = 5 // 자동 클릭은 시험용: 한 번에 최대 5개, 나머지는 직접 누르기
+  const AUTO_MAX = 30
   const SUBMIT_TIMEOUT_MS = 30000
 
   // 공식 페이지의 알림 문구 → 결과 종류 (page-data의 cp_alert_* 한국어/영어)
@@ -144,7 +144,7 @@
     if (!form) { send({ type: 'ovb-coupon:done', jobId: job.jobId, reason: 'form-not-found' }); return }
     running = true
     let auto = !!job.auto
-    const delay = Math.max(2000, Number(job.delayMs) || 3000)
+    const baseDelay = Math.max(0, Number(job.delayMs) || 3000)
     const ids = job.ids.slice()
     for (let i = 0; i < ids.length; i++) {
       if (stopped) break
@@ -158,7 +158,9 @@
       }
       const alertPromise = waitAlert()
       if (auto) {
-        showStatus(`(${i + 1}/${ids.length}) ${id} — ${delay / 1000}초 뒤 자동으로 제출해요`)
+        const delay = baseDelay + Math.random() * 500
+
+        showStatus(`(${i + 1}/${ids.length}) ${id} — ${(delay / 1000).toFixed(2)}초 뒤 자동으로 제출해요`)
         await sleep(delay)
         if (stopped) { pendingAlert = null; break }
         form.button.click()
