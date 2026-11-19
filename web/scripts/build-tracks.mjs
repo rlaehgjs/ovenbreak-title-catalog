@@ -8,6 +8,7 @@
 // - '끝까지 재생'용 끝부분(out/endings.json, out/flac/ending/*.flac): 재생 = 본 파일[0:endFrame] + ending 파일
 //   (반복 0회 렌더와 샘플 단위로 같음, render_endings.py에서 검증)
 // 사용법: node scripts/build-tracks.mjs [manifest 경로]
+import {categoryOf} from './bgm-category.mjs'
 import {copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -106,7 +107,8 @@ for (const list of bySong.values()) {
   const id = list[0].id.split('@')[0]
   const names = [...new Set(list.map(t => t.id.split('@')[0]))].filter(n => n !== id)
   const aliases = list.map(t => t.id).filter(x => x !== id)
-  songs.push({id, ...(names.length ? {names} : {}), ...(aliases.length ? {aliases} : {}), versions})
+  const song = {id, ...(names.length ? {names} : {}), ...(aliases.length ? {aliases} : {}), versions}
+  songs.push({...song, category: categoryOf(song).category})
 }
 songs.sort((a, b) => (!!b.versions[0].bundled - !!a.versions[0].bundled) || a.id.localeCompare(b.id))
 const ids = new Set(), keys = new Set()

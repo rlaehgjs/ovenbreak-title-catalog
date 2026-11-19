@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CouponGuide } from './CouponGuide'
 
 // 이 브라우저에만 저장 (서버로 보내지 않음). ID는 공식 쿠폰 페이지에만 전달된다.
 const STORAGE_KEY = 'ovenbreak-coupon-helper-v1'
@@ -6,7 +7,8 @@ const OFFICIAL_ORIGINS = ['https://www.cookierun.com', 'https://cookierun.com']
 // 끝의 / 가 없으면 서버가 /ko/coupon/ 으로 넘기면서 ?code= 를 버린다 (2026-11-18 확인)
 const OFFICIAL_URL = 'https://www.cookierun.com/ko/coupon/'
 const SCRIPT_URL = `${import.meta.env.BASE_URL}userscripts/ovenbreak-coupon-helper.user.js`
-const AUTO_MAX = 5
+const AUTO_MAX = 30
+const MAX_ACCOUNTS = 30
 
 type Account = { id: string; label: string }
 type Coupon = { code: string; memo: string; addedAt: string }
@@ -102,7 +104,8 @@ export default function CouponsPage() {
 
   const idValue = filterValue(newId)
   const codeValue = filterValue(newCode)
-  const idOk = idValue.length === 9 && !HANGUL.test(newId) && !store.accounts.some(a => a.id === idValue)
+  const full = store.accounts.length >= MAX_ACCOUNTS
+  const idOk = !full && idValue.length === 9 && !HANGUL.test(newId) && !store.accounts.some(a => a.id === idValue)
   const codeOk = codeValue.length === 16 && !HANGUL.test(newCode) && !store.coupons.some(c => c.code === codeValue)
   const addAccount = (e: React.FormEvent) => {
     e.preventDefault()
@@ -138,14 +141,17 @@ export default function CouponsPage() {
         <p>공식 페이지에 자동으로 입력하려면 브라우저에 <a className="text-link" href={SCRIPT_URL}>쿠폰 도우미 유저스크립트</a>를 설치해야 해요 (Tampermonkey·Violentmonkey).</p>
       </div>
 
+      <CouponGuide scriptUrl={SCRIPT_URL} officialUrl={OFFICIAL_URL} />
+
       <div className="coupon-grid">
         <section className="coupon-card">
-          <h2>계정 ID</h2>
+          <h2>계정 ID <small>{store.accounts.length}/{MAX_ACCOUNTS}</small></h2>
           <form onSubmit={addAccount} className="coupon-form">
             <input aria-label="사용자 ID (9자리)" placeholder="사용자 ID 9자리" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={newId} onChange={e => setNewId(e.target.value)} />
             <input aria-label="별명 (선택)" placeholder="별명 (선택)" maxLength={20} value={newLabel} onChange={e => setNewLabel(e.target.value)} />
             <button disabled={!idOk}>추가</button>
           </form>
+          {full && <p className="coupon-hint warn">계정은 최대 {MAX_ACCOUNTS}개까지 등록할 수 있어요. 새로 넣으려면 기존 계정을 삭제해 주세요.</p>}
           <InputHint raw={newId} value={idValue} size={9} what="저장될 ID" exists={store.accounts.some(a => a.id === idValue)} />
           {store.accounts.length === 0 ? <p>아직 등록한 계정이 없어요.</p> : (
             <ul className="coupon-list">
@@ -216,7 +222,7 @@ export default function CouponsPage() {
             <label><input type="radio" name="mode" checked={!auto} onChange={() => setAuto(false)} /> ID만 차례로 입력하고, '상품 받기'는 내가 누르기 (권장)</label>
             <label><input type="radio" name="mode" checked={auto} onChange={() => setAuto(true)} /> 자동으로 누르기 — 시험용, 최대 {AUTO_MAX}개</label>
             {auto && <label className="coupon-delay">제출 간격 <input type="number" min={2} max={30} value={delaySec} onChange={e => setDelaySec(Math.min(30, Math.max(2, Number(e.target.value) || 3)))} />초</label>}
-            {auto && <p>공식 페이지는 보이지 않는 reCAPTCHA로 사람인지 판단해요. 자동 클릭은 실패할 수 있고, 예상 밖 결과가 나오면 자동 클릭을 끄고 직접 누르게 바뀌어요. 데브시스터즈 이용약관에 어긋날 수 있으니 본인 계정 시험용으로만 써 주세요.</p>}
+            {auto && <p>공식 페이지는 보이지 않는 reCAPTCHA로 사람인지 판단해요. 자동 클릭은 실패할 수 있고, 예상 밖 결과가 나오면 자동 클릭을 끄고 직접 누르게 바뀌어요. 데브시스터즈 이용약관에 어긋날 수 있으니 사용에 주의해 주세요.</p>}
           </fieldset>
 
           <button type="button" className="coupon-start" disabled={busy || targets.length === 0} onClick={start}>

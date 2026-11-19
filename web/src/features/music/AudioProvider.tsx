@@ -8,10 +8,10 @@ const sampleRate=48000
 // tracks.json lists songs; each song has one version per distinct game setting (speed, loop section, effects).
 // endFrame/ending: "끝까지 재생" = render[0:endFrame] + ending file (loop-count-0 render remainder). Absent for one-shot versions.
 type RawVersion={key:string;src:string;frames:number;loopStartFrame:number|null;loopEndFrame:number|null;loopExact?:boolean;bundled?:boolean;endFrame?:number;ending?:string;endingFrames?:number;summary:string;uses:string[];unlisted?:boolean;event?:boolean;speed?:number}
-type RawSong={id:string;names?:string[];aliases?:string[];versions:RawVersion[]}
+type RawSong={id:string;names?:string[];aliases?:string[];category?:string;versions:RawVersion[]}
 export type Track=Omit<RawVersion,'speed'>&{speed:number;songId:string;duration:number;songDuration:number;sampleRate:number;gameLoop:boolean}
-export type Song={id:string;title:string;names:string[];versions:Track[]}
-export const songs:Song[]=(allTracks as RawSong[]).map(s=>({id:s.id,title:s.id,names:s.names||[],versions:s.versions.filter(v=>remoteBase||v.bundled).map(v=>({...v,songId:s.id,duration:v.frames/sampleRate,songDuration:v.endFrame!==undefined?(v.endFrame+(v.endingFrames||0))/sampleRate:v.frames/sampleRate,sampleRate,gameLoop:v.loopEndFrame!==null,speed:v.speed??1}))})).filter(s=>s.versions.length)
+export type Song={id:string;title:string;names:string[];category:string;versions:Track[]}
+export const songs:Song[]=(allTracks as RawSong[]).map(s=>({id:s.id,title:s.id,names:s.names||[],category:s.category||'기타·미분류',versions:s.versions.filter(v=>remoteBase||v.bundled).map(v=>({...v,songId:s.id,duration:v.frames/sampleRate,songDuration:v.endFrame!==undefined?(v.endFrame+(v.endingFrames||0))/sampleRate:v.frames/sampleRate,sampleRate,gameLoop:v.loopEndFrame!==null,speed:v.speed??1}))})).filter(s=>s.versions.length)
 const songById=new Map(songs.map(s=>[s.id,s]))
 export const findSong=(id:string)=>songById.get(id)
 const catalog={alias:Object.fromEntries((allTracks as RawSong[]).flatMap(s=>(s.aliases||[]).map(a=>[a,s.id]))),versions:Object.fromEntries(songs.map(s=>[s.id,s.versions.map(v=>v.key)]))}

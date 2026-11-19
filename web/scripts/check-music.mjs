@@ -1,6 +1,6 @@
 import {strict as assert} from 'node:assert';
 import {sanitize,defaults,queueFor,takeNext,storageKey,mapPosition} from '../src/features/music/model.ts';
-import {BufferEngine} from '../src/features/music/BufferEngine.ts';
+import {BufferEngine,AudioFetchError,audioErrorText} from '../src/features/music/BufferEngine.ts';
 const ids=['a','b','c'];
 assert.equal(storageKey,'ovenbreak-music-settings-v1');
 assert.deepEqual(sanitize(null,ids),defaults(ids));
@@ -63,6 +63,11 @@ fetches=0;globalThis.fetch=async()=>{fetches++;return {ok:true,arrayBuffer:async
 console.log('PASS: decoded cache stays within memory budget');
 
 // Track catalog must match native FMOD render boundaries.
+// 음악 서버 한도 초과(네트워크 오류·429·5xx)는 하루 제공량 안내, 오프라인은 연결 안내
+assert.match(audioErrorText(new AudioFetchError('unavailable')),/오전 9시/);assert.match(audioErrorText(new AudioFetchError('offline')),/인터넷 연결/);assert.match(audioErrorText(new Error('decode')),/불러오지 못했습니다/);
+{const realFetch=globalThis.fetch;const q=new BufferEngine;globalThis.fetch=async()=>({ok:false,status:429});await q.play('/quota.flac',0);assert.match(q.error,/오전 9시/);
+ globalThis.fetch=async()=>{throw new TypeError('Failed to fetch')};await q.play('/cors.flac',0);assert.match(q.error,/오전 9시/);q.close();globalThis.fetch=realFetch}
+console.log('PASS: quota/network failures show the daily-limit message');
 const {readFileSync,existsSync}=await import('node:fs');
 const songs=JSON.parse(readFileSync(new URL('../src/features/music/tracks.json',import.meta.url),'utf8'));
 // Songs merge identical music (same MIDI / same notes); each version is one distinct game setting and one render.
@@ -79,6 +84,9 @@ for(const t of tracks){
 }
 const bundled=tracks.filter(t=>t.bundled);assert.deepEqual(bundled.map(t=>t.id),['bgm_bonus_ovenbreak_01','bgm_bonus_ovenbreak_02','bgm_bonus_ovenbreak_03']);
 for(const t of bundled){const s=streaminfo(readFileSync(new URL('../public/audio/'+t.src.split('?')[0],import.meta.url)));assert.deepEqual(s,{rate:48000,channels:2,bits:16,frames:t.frames});assert.equal(t.loopStartFrame,0);assert.equal(t.loopEndFrame,504337)}
+// 분류: 모든 곡이 정해진 7개 분류 중 하나
+{const {CATEGORIES}=await import('./bgm-category.mjs');for(const s of songs)assert(CATEGORIES.includes(s.category),`bad category ${s.id}: ${s.category}`);
+ console.log(`PASS: every song has a category (${CATEGORIES.map(c=>c+' '+songs.filter(s=>s.category===c).length).join(', ')})`)}
 // 속도 옵션: speed가 있으면 1이 아닌 양수이고 요약의 '속도 N배'와 같음, 합친(사실상 같은 소리) 버전 키는 곡 별칭으로만 남음
 {let speedSongs=0;for(const s of songs){for(const v of s.versions){if(v.speed!==undefined){assert(v.speed>0&&v.speed!==1,`bad speed ${v.key}`);const m=/속도 ([\d.]+)배/.exec(v.summary);assert(m&&Math.abs(Number(m[1])-v.speed)<1e-3,`speed/summary mismatch ${v.key}`)}}if(new Set(s.versions.map(v=>v.speed??1)).size>1)speedSongs++}
  const near=JSON.parse(readFileSync(new URL('../../analysis/bgm-render/near-identical.json',import.meta.url),'utf8')).versions;

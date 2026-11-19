@@ -1,6 +1,11 @@
 // A single AudioContext survives route changes. Repetition is handled by the audio clock.
 // Assets are native FMOD renders: [0, loopStart) plays once (intro), then [loopStart, loopEnd) repeats
 // sample-exactly via AudioBufferSourceNode.loopStart/loopEnd. Never trim silence or crossfade samples.
+export class AudioFetchError extends Error{readonly kind:'offline'|'unavailable'|'missing';constructor(kind:'offline'|'unavailable'|'missing'){super('audio fetch '+kind);this.kind=kind}}
+export const audioErrorText=(e:unknown)=>e instanceof DOMException&&e.name==='NotAllowedError'?'재생 버튼을 다시 눌러 브라우저의 오디오를 허용해 주세요.'
+ :e instanceof AudioFetchError&&e.kind==='offline'?'인터넷 연결이 끊겨 음원을 불러오지 못했습니다. 연결을 확인한 뒤 재생을 다시 눌러 주세요.'
+ :e instanceof AudioFetchError&&e.kind==='unavailable'?'오늘 음악 제공량이 모두 소진되었거나 음악 서버에 연결할 수 없습니다. 제공량은 매일 오전 9시(한국 시간)에 초기화됩니다. 칭호 도감 등 다른 기능은 그대로 이용할 수 있어요.'
+ :'음원을 불러오지 못했습니다. 재생을 다시 누르거나 다른 곡을 선택해 주세요.'
 export type LoopRange = {start:number;end:number}
 // "끝까지 재생" (song mode): the same render up to `at` frames, followed by a separately rendered ending
 // (FMOD LOOP_OFF output from that frame on, sample-identical prefix). Joined by copying samples, never blended.
@@ -40,7 +45,11 @@ export class BufferEngine {
  }
  private async load(url:string,token:number){
   let b=this.cache.get(url)
-  if(!b){const response=await fetch(url);if(!response.ok)throw Error('audio fetch');b=await this.ensure().decodeAudioData(await response.arrayBuffer());if(token!==this.token)return null}
+  if(!b){
+   // The audio Worker stops (no CORS headers → network error, or 429/5xx) once its free daily quota is used up.
+   let response:Response;try{response=await fetch(url)}catch{throw new AudioFetchError(typeof navigator!=='undefined'&&navigator.onLine===false?'offline':'unavailable')}
+   if(!response.ok)throw new AudioFetchError(response.status===429||response.status>=500?'unavailable':'missing')
+   b=await this.ensure().decodeAudioData(await response.arrayBuffer());if(token!==this.token)return null}
   this.remember(url,b);return b
  }
  async play(url:string,position:number,range?:LoopRange|null,ending?:Ending|null){
@@ -65,7 +74,7 @@ export class BufferEngine {
    this.loopStart=end>start?start:0;this.loopEnd=end>start?end:this.duration
    this.offset=Math.max(0,Math.min(position,this.duration));if(this.offset>=this.duration)this.offset=0
    this.startSource();this.loading=false
-  }catch(e){if(token!==this.token)return;this.loading=false;this.playing=false;this.error=e instanceof DOMException&&e.name==='NotAllowedError'?'재생 버튼을 다시 눌러 브라우저의 오디오를 허용해 주세요.':'음원을 불러오지 못했습니다. 재생을 다시 누르거나 다른 곡을 선택해 주세요.'}
+  }catch(e){if(token!==this.token)return;this.loading=false;this.playing=false;this.error=audioErrorText(e)}
  }
  private startSource(){const ctx=this.ensure();if(!this.buffer)return;const source=ctx.createBufferSource();source.buffer=this.buffer;source.loop=this.loop;source.loopStart=this.loopStart;source.loopEnd=this.loopEnd;source.connect(this.gain!);source.onended=()=>{if(this.source!==source)return;source.disconnect();this.source=null;this.playing=false;this.offset=this.duration;this.onEnd()};this.source=source;this.startAt=ctx.currentTime;this.playing=true;source.start(0,this.offset)}
  seek(value:number){const playing=this.playing;this.offset=Math.max(0,Math.min(value,this.duration));this.stopSource();if(playing){if(this.offset>=this.duration)this.offset=Math.max(0,this.duration-.001);this.startSource()}}
